@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技能俄罗斯方块 (Power-Up Tetris)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans flex flex-col items-center justify-center min-h-screen m-0">
+    <div class="text-center mb-5">
+        <h1 class="text-4xl font-bold mb-2">技能俄罗斯方块</h1>
+        <p class="text-xl">方向键或WASD移动/旋转，空格键快速下落</p>
+    </div>
+
+    <div class="flex gap-8 items-start">
+        <!-- 游戏主区域 -->
+        <div id="game-container" class="relative border-4 border-green-600 bg-gray-800">
+            <canvas id="game-canvas" class="block"></canvas>
+            
+            <!-- 开始界面 -->
+            <div id="start-screen" class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                <h2 class="text-3xl font-bold mb-6">技能俄罗斯方块</h2>
+                <p class="mb-2">方向键或WASD移动/旋转，空格键快速下落</p>
+                <p class="mb-4">技能快捷键: 1(炸弹), 2(减速), 3(变换), 4(水平消除), 5(粉碎), 6(幽灵模式), 7(重力反转)</p>
+                <p class="mb-6">最高记录: <span id="high-score-display">0</span></p>
+                <button id="start-button" class="px-6 py-3 bg-green-600 text-white text-xl rounded hover:bg-green-700 transition-colors">
+                    开始游戏
+                </button>
+            </div>
+
+            <!-- 游戏结束界面 -->
+            <div id="game-over-screen" class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center hidden">
+                <h2 class="text-4xl font-bold text-red-500 mb-2">游戏结束!</h2>
+                <p class="text-2xl mb-2">你的得分: <span id="final-score">0</span></p>
+                <p class="text-2xl mb-6">最高记录: <span id="final-high-score">0</span></p>
+                <button id="restart-button" class="mt-6 px-6 py-3 bg-green-600 text-white text-xl rounded hover:bg-green-700 transition-colors">
+                    再来一局
+                </button>
+            </div>
+        </div>
+
+        <!-- 游戏信息和控制面板 -->
+        <div class="flex flex-col gap-6">
+            <!-- 下一个方块预览 -->
+            <div class="border-4 border-green-600 bg-gray-800 p-4">
+                <h3 class="text-xl font-bold mb-2 text-center">下一个</h3>
+                <canvas id="next-piece-canvas" class="block mx-auto"></canvas>
+            </div>
+
+            <!-- 分数和等级 -->
+            <div class="bg-gray-800 p-4 rounded-lg border-2 border-green-600">
+                <div class="text-xl mb-2">分数: <span id="score" class="text-green-500">0</span></div>
+                <div class="text-xl mb-2">最高记录: <span id="current-high-score" class="text-yellow-500">0</span></div>
+                <div class="text-xl mb-2">等级: <span id="level" class="text-green-500">1</span></div>
+                <div class="text-xl">已消除行数: <span id="lines" class="text-green-500">0</span></div>
+            </div>
+
+            <!-- 技能系统 -->
+            <div class="bg-gray-800 p-4 rounded-lg border-2 border-green-600">
+                <h3 class="text-xl font-bold mb-3 text-center">技能系统</h3>
+                
+                <!-- 能量条 -->
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <span>能量</span>
+                        <span id="power-percentage">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                        <div id="power-bar" class="bg-yellow-500 h-full rounded-full w-0 transition-all duration-100"></div>
+                    </div>
+                </div>
+                
+                <!-- 技能次数 -->
+                <div class="mb-4 text-center">
+                    <span>技能次数: </span>
+                    <span id="skill-count" class="text-yellow-500 font-bold">0</span>
+                    <span>/3</span>
+                </div>
+                
+                <!-- 技能按钮 -->
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="skill-bomb" class="skill-button py-2 px-4 bg-red-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>💣 (1)</span> 炸弹 (清除三行)
+                    </button>
+                    <button id="skill-slow" class="skill-button py-2 px-4 bg-blue-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>⏱️ (2)</span> 减速 (10秒)
+                    </button>
+                    <button id="skill-transform" class="skill-button py-2 px-4 bg-purple-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>🔄 (3)</span> 变换 (当前方块)
+                    </button>
+                    <button id="skill-line-clear" class="skill-button py-2 px-4 bg-green-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>🗡️ (4)</span> 水平消除 (当前行)
+                    </button>
+                    <button id="skill-smash" class="skill-button py-2 px-4 bg-orange-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>🔨 (5)</span> 粉碎 (随机12个方块)
+                    </button>
+                    <button id="skill-ghost" class="skill-button py-2 px-4 bg-indigo-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>👻 (6)</span> 幽灵模式 (5秒)
+                    </button>
+                    <button id="skill-gravity" class="skill-button py-2 px-4 bg-pink-600 text-white rounded disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled>
+                        <span>🔼 (7)</span> 重力反转 (5秒)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const gameCanvas = document.getElementById('game-canvas');
+        const nextPieceCanvas = document.getElementById('next-piece-canvas');
+        const ctx = gameCanvas.getContext('2d');
+        const nextCtx = nextPieceCanvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level');
+        const linesDisplay = document.getElementById('lines');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const highScoreDisplay = document.getElementById('high-score-display');
+        const currentHighScoreDisplay = document.getElementById('current-high-score');
+        const finalHighScoreDisplay = document.getElementById('final-high-score');
+        
+        // 技能系统元素
+        const powerBar = document.getElementById('power-bar');
+        const powerPercentage = document.getElementById('power-percentage');
+        const skillButtons = document.querySelectorAll('.skill-button');
+        const skillCountDisplay = document.getElementById('skill-count');
+        const skillBombButton = document.getElementById('skill-bomb');
+        const skillSlowButton = document.getElementById('skill-slow');
+        const skillTransformButton = document.getElementById('skill-transform');
+        const skillLineClearButton = document.getElementById('skill-line-clear');
+        const skillSmashButton = document.getElementById('skill-smash');
+        const skillGhostButton = document.getElementById('skill-ghost');
+        const skillGravityButton = document.getElementById('skill-gravity');
+
+        // 游戏配置
+        const GRID_WIDTH = 10;
+        const GRID_HEIGHT = 20;
+        const CELL_SIZE = 30;
+        gameCanvas.width = GRID_WIDTH * CELL_SIZE;
+        gameCanvas.height = GRID_HEIGHT * CELL_SIZE;
+        
+        // 下一个方块预览画布大小 (以最大的方块 "I" 为基准)
+        nextPieceCanvas.width = 4 * CELL_SIZE;
+        nextPieceCanvas.height = 4 * CELL_SIZE;
+
+        // 方块形状定义 (经典俄罗斯方块)
+        const SHAPES = [
+            { // I
+                shape: [
+                    [0, 0, 0, 0],
+                    [1, 1, 1, 1],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0]
+                ],
+                color: '#00f0f0' // Cyan
+            },
+            { // J
+                shape: [
+                    [1, 0, 0],
+                    [1, 1, 1],
+                    [0, 0, 0]
+                ],
+                color: '#0000f0' // Blue
+            },
+            { // L
+                shape: [
+                    [0, 0, 1],
+                    [1, 1, 1],
+                    [0, 0, 0]
+                ],
+                color: '#f0a000' // Orange
+            },
+            { // O
+                shape: [
+                    [1, 1],
+                    [1, 1]
+                ],
+                color: '#f0f000' // Yellow
+            },
+            { // S
+                shape: [
+                    [0, 1, 1],
+                    [1, 1, 0],
+                    [0, 0, 0]
+                ],
+                color: '#00f000' // Green
+            },
+            { // T
+                shape: [
+                    [0, 1, 0],
+                    [1, 1, 1],
+                    [0, 0, 0]
+                ],
+                color: '#a000f0' // Purple
+            },
+            { // Z
+                shape: [
+                    [1, 1, 0],
+                    [0, 1, 1],
+                    [0, 0, 0]
+                ],
+                color: '#f00000' // Red
+            }
+        ];
+
+        // 游戏状态
+        let board = [];
+        let currentPiece = null;
+        let nextPiece = null;
+        let score = 0;
+        let highScore = localStorage.getItem('tetrisHighScore') ? parseInt(localStorage.getItem('tetrisHighScore')) : 0;
+        let level = 1;
+        let linesCleared = 0;
+        let dropInterval = 1000; // 初始下落速度 (毫秒)
+        let dropTimer = null;
+        let isGameRunning = false;
+        let gameLoopId = null;
+        
+        // 技能系统状态
+        let power = 0;
+        const MAX_POWER = 100;
+        const POWER_PER_LINE = 10; // 每消除一行获得的能量
+        let skillCharges = 0;
+        const MAX_SKILL_CHARGES = 3;
+        let isSlowActive = false;
+        let slowTimer = null;
+        let isGhostActive = false;
+        let ghostTimer = null;
+        let isGravityReversed = false;
+        let gravityTimer = null;
+
+        // 更新最高分数显示
+        function updateHighScoreDisplay() {
+            highScoreDisplay.textContent = highScore;
+            currentHighScoreDisplay.textContent = highScore;
+            finalHighScoreDisplay.textContent = highScore;
+        }
+
+        // 保存最高分数到本地存储
+        function saveHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('tetrisHighScore', highScore.toString());
+                updateHighScoreDisplay();
+            }
+        }
+
+        // 初始化游戏区域
+        function initBoard() {
+            board = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0));
+        }
+
+        // 随机生成一个新方块
+        function generateRandomPiece() {
+            const randomIndex = Math.floor(Math.random() * SHAPES.length);
+            const piece = SHAPES[randomIndex];
+            return {
+                shape: JSON.parse(JSON.stringify(piece.shape)), // 深拷贝，避免修改原数组
+                color: piece.color,
+                x: Math.floor((GRID_WIDTH - piece.shape[0].length) / 2),
+                y: 0
+            };
+        }
+
+        // 检查移动是否有效
+        function isValidMove(piece, offsetX, offsetY) {
+            for (let y = 0; y < piece.shape.length; y++) {
+                for (let x = 0; x < piece.shape[y].length; x++) {
+                    if (piece.shape[y][x]) {
+                        const newX = piece.x + x + offsetX;
+                        const newY = piece.y + y + offsetY;
+                        
+                        // 检查是否超出边界
+                        if (newX < 0 || newX >= GRID_WIDTH || newY >= GRID_HEIGHT || newY < 0) {
+                            return false;
+                        }
+                        
+                        // 检查是否与已有方块碰撞
+                        if (board[newY][newX]) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // 旋转方块
+        function rotatePiece(piece) {
+            const rotatedShape = [];
+            for (let x = 0; x < piece.shape[0].length; x++) {
+                const newRow = [];
+                for (let y = piece.shape.length - 1; y >= 0; y--) {
+                    newRow.push(piece.shape[y][x]);
+                }
+                rotatedShape.push(newRow);
+            }
+            
+            const originalShape = piece.shape;
+            piece.shape = rotatedShape;
+            
+            // 如果旋转后无效，尝试墙踢 (wall kick)
+            const wallKicks = [0, -1, 1, -2, 2]; // 尝试的水平偏移量
+            for (const kick of wallKicks) {
+                if (isValidMove(piece, kick, 0)) {
+                    piece.x += kick;
+                    return;
+                }
+            }
+            
+            // 如果所有墙踢都无效，则取消旋转
+            piece.shape = originalShape;
+        }
+
+        // 将当前方块锁定到游戏区域
+        function lockPiece() {
+            for (let y = 0; y < currentPiece.shape.length; y++) {
+                for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                    if (currentPiece.shape[y][x]) {
+                        const boardY = currentPiece.y + y;
+                        const boardX = currentPiece.x + x;
+                        if (boardY >= 0) { // 只锁定在游戏区域内的部分
+                            board[boardY][boardX] = currentPiece.color;
+                        }
+                    }
+                }
+            }
+            
+            // 检查是否有可以消除的行
+            clearLines();
+            
+            // 准备下一个方块
+            currentPiece = nextPiece;
+            nextPiece = generateRandomPiece();
+            
+            // 检查游戏是否结束 (新方块无法移动)
+            if (!isValidMove(currentPiece, 0, 0)) {
+                gameOver();
+            }
+            
+            // 渲染下一个方块预览
+            renderNextPiece();
+        }
+
+        // 消除已满的行
+        function clearLines() {
+            let linesClearedThisTime = 0;
+            for (let y = GRID_HEIGHT - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    // 移除已满的行
+                    board.splice(y, 1);
+                    // 在顶部添加一个新的空行
+                    board.unshift(Array(GRID_WIDTH).fill(0));
+                    linesClearedThisTime++;
+                    y++; // 因为删除了一行，需要重新检查当前索引
+                }
+            }
+            
+            if (linesClearedThisTime > 0) {
+                // 更新分数 (经典计分规则)
+                const linePoints = [0, 100, 300, 500, 800]; // 0, 1, 2, 3, 4行的分数
+                score += linePoints[linesClearedThisTime] * level;
+                linesCleared += linesClearedThisTime;
+                
+                // 更新等级 (每消除10行升一级)
+                const newLevel = Math.floor(linesCleared / 10) + 1;
+                if (newLevel > level) {
+                    level = newLevel;
+                    // 加快下落速度，但有最低限制
+                    if (dropInterval > 100) {
+                        dropInterval -= 100;
+                        restartDropTimer();
+                    }
+                }
+                
+                // 更新显示
+                scoreDisplay.textContent = score;
+                levelDisplay.textContent = level;
+                linesDisplay.textContent = linesCleared;
+                
+                // 增加技能能量
+                addPower(POWER_PER_LINE * linesClearedThisTime);
+            }
+        }
+
+        // 渲染游戏画面
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#1f2937'; // bg-gray-800
+            ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            
+            // 绘制网格线
+            ctx.strokeStyle = '#374151'; // bg-gray-700
+            ctx.lineWidth = 1;
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+            
+            // 绘制已锁定的方块
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    if (board[y][x]) {
+                        drawCell(ctx, x, y, board[y][x]);
+                    }
+                }
+            }
+            
+            // 绘制幽灵方块（如果幽灵模式激活）
+            if (isGhostActive && currentPiece) {
+                const ghostPiece = {
+                    shape: currentPiece.shape,
+                    color: currentPiece.color,
+                    x: currentPiece.x,
+                    y: currentPiece.y
+                };
+                
+                // 计算幽灵方块最终位置
+                while (isValidMove(ghostPiece, 0, 1)) {
+                    ghostPiece.y++;
+                }
+                
+                // 绘制幽灵方块（半透明）
+                for (let y = 0; y < ghostPiece.shape.length; y++) {
+                    for (let x = 0; x < ghostPiece.shape[y].length; x++) {
+                        if (ghostPiece.shape[y][x]) {
+                            const boardY = ghostPiece.y + y;
+                            const boardX = ghostPiece.x + x;
+                            if (boardY >= 0) { // 只绘制在游戏区域内的部分
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                                ctx.fillRect(boardX * CELL_SIZE, boardY * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(boardX * CELL_SIZE, boardY * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 绘制当前方块
+            if (currentPiece) {
+                for (let y = 0; y < currentPiece.shape.length; y++) {
+                    for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                        if (currentPiece.shape[y][x]) {
+                            const boardY = currentPiece.y + y;
+                            const boardX = currentPiece.x + x;
+                            if (boardY >= 0) { // 只绘制在游戏区域内的部分
+                                drawCell(ctx, boardX, boardY, currentPiece.color);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 技能视觉效果
+            if (isSlowActive) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'; // bg-blue-500 with opacity
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            }
+            
+            if (isGhostActive) {
+                ctx.fillStyle = 'rgba(168, 85, 247, 0.1)'; // bg-purple-500 with opacity
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            }
+            
+            if (isGravityReversed) {
+                ctx.fillStyle = 'rgba(236, 72, 153, 0.2)'; // bg-pink-500 with opacity
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            }
+        }
+
+        // 渲染下一个方块预览
+        function renderNextPiece() {
+            // 清空画布
+            nextCtx.fillStyle = '#1f2937'; // bg-gray-800
+            nextCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
+            
+            // 绘制下一个方块
+            if (nextPiece) {
+                // 计算居中偏移
+                const offsetX = (nextPieceCanvas.width - nextPiece.shape[0].length * CELL_SIZE) / 2;
+                const offsetY = (nextPieceCanvas.height - nextPiece.shape.length * CELL_SIZE) / 2;
+                
+                for (let y = 0; y < nextPiece.shape.length; y++) {
+                    for (let x = 0; x < nextPiece.shape[y].length; x++) {
+                        if (nextPiece.shape[y][x]) {
+                            nextCtx.fillStyle = nextPiece.color;
+                            nextCtx.fillRect(
+                                offsetX + x * CELL_SIZE, 
+                                offsetY + y * CELL_SIZE, 
+                                CELL_SIZE, 
+                                CELL_SIZE
+                            );
+                            // 边框
+                            nextCtx.strokeStyle = '#ffffff';
+                            nextCtx.lineWidth = 2;
+                            nextCtx.strokeRect(
+                                offsetX + x * CELL_SIZE, 
+                                offsetY + y * CELL_SIZE, 
+                                CELL_SIZE, 
+                                CELL_SIZE
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 绘制单个方块
+        function drawCell(context, x, y, color) {
+            context.fillStyle = color;
+            context.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            
+            // 高光效果，让方块更有立体感
+            context.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            context.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE / 4);
+            context.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE / 4, CELL_SIZE);
+            
+            // 边框
+            context.strokeStyle = '#ffffff';
+            context.lineWidth = 2;
+            context.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        }
+
+        // 处理键盘输入
+        function handleKeydown(e) {
+            if (!isGameRunning) return;
+
+            switch (e.key) {
+                // 方向键控制
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    if (isValidMove(currentPiece, -1, 0)) {
+                        currentPiece.x--;
+                    }
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    if (isValidMove(currentPiece, 1, 0)) {
+                        currentPiece.x++;
+                    }
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    movePieceDown();
+                    break;
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    rotatePiece(currentPiece);
+                    break;
+                case ' ': // 空格键
+                    hardDrop();
+                    break;
+                    
+                // 技能快捷键
+                case '1':
+                    useSkillBomb();
+                    break;
+                case '2':
+                    useSkillSlow();
+                    break;
+                case '3':
+                    useSkillTransform();
+                    break;
+                case '4':
+                    useSkillLineClear();
+                    break;
+                case '5':
+                    useSkillSmash();
+                    break;
+                case '6':
+                    useSkillGhost();
+                    break;
+                case '7':
+                    useSkillGravity();
+                    break;
+            }
+        }
+
+        // 移动方块（根据重力方向）
+        function movePieceDown() {
+            const direction = isGravityReversed ? -1 : 1;
+            if (isValidMove(currentPiece, 0, direction)) {
+                currentPiece.y += direction;
+                // 移动可以获得少量分数
+                score++;
+                scoreDisplay.textContent = score;
+            } else {
+                // 如果重力反转，检查是否触顶
+                if (isGravityReversed && currentPiece.y <= 0) {
+                    lockPiece();
+                } 
+                // 正常重力下触底
+                else if (!isGravityReversed) {
+                    lockPiece();
+                }
+            }
+        }
+
+        // 硬降落 (直接落到相应方向的底部)
+        function hardDrop() {
+            const direction = isGravityReversed ? -1 : 1;
+            while (isValidMove(currentPiece, 0, direction)) {
+                currentPiece.y += direction;
+                // 硬降落每格获得更多分数
+                score += 2;
+            }
+            scoreDisplay.textContent = score;
+            lockPiece();
+        }
+
+        // 开始游戏
+        function startGame() {
+            if (isGameRunning) return;
+
+            // 重置游戏状态
+            initBoard();
+            score = 0;
+            level = 1;
+            linesCleared = 0;
+            dropInterval = 1000;
+            
+            // 重置技能状态
+            setPower(0);
+            skillCharges = 0;
+            updateSkillChargesDisplay();
+            isSlowActive = false;
+            isGhostActive = false;
+            isGravityReversed = false;
+            
+            if (slowTimer) clearTimeout(slowTimer);
+            if (ghostTimer) clearTimeout(ghostTimer);
+            if (gravityTimer) clearTimeout(gravityTimer);
+            
+            scoreDisplay.textContent = score;
+            levelDisplay.textContent = level;
+            linesDisplay.textContent = linesCleared;
+            
+            // 生成初始方块
+            currentPiece = generateRandomPiece();
+            nextPiece = generateRandomPiece();
+            renderNextPiece();
+            
+            // 开始游戏循环
+            isGameRunning = true;
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            // 清除任何可能存在的旧循环
+            if (gameLoopId) clearInterval(gameLoopId);
+            gameLoopId = setInterval(gameLoop, 16); // ~60 FPS
+            
+            restartDropTimer();
+        }
+
+        // 游戏结束
+        function gameOver() {
+            isGameRunning = false;
+            clearInterval(gameLoopId);
+            clearInterval(dropTimer);
+            if (slowTimer) clearTimeout(slowTimer);
+            if (ghostTimer) clearTimeout(ghostTimer);
+            if (gravityTimer) clearTimeout(gravityTimer);
+            
+            // 保存最高分数
+            saveHighScore();
+            
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            render();
+        }
+
+        // 重置下落计时器
+        function restartDropTimer() {
+            clearInterval(dropTimer);
+            dropTimer = setInterval(() => {
+                if (isGameRunning) {
+                    movePieceDown();
+                }
+            }, dropInterval);
+        }
+
+        // --- 技能系统函数 ---
+
+        // 设置能量值
+        function setPower(newPower) {
+            power = Math.min(newPower, MAX_POWER);
+            const percentage = (power / MAX_POWER) * 100;
+            powerBar.style.width = `${percentage}%`;
+            powerPercentage.textContent = `${Math.round(percentage)}%`;
+            
+            // 如果能量满了，增加技能次数
+            if (power >= MAX_POWER && skillCharges < MAX_SKILL_CHARGES) {
+                skillCharges++;
+                updateSkillChargesDisplay();
+                setPower(0); // 重置能量条
+            }
+            
+            // 根据是否有技能次数来启用/禁用技能按钮
+            const areSkillsEnabled = skillCharges > 0;
+            skillButtons.forEach(button => {
+                button.disabled = !areSkillsEnabled;
+            });
+        }
+
+        // 更新技能次数显示
+        function updateSkillChargesDisplay() {
+            skillCountDisplay.textContent = skillCharges;
+        }
+
+        // 增加能量
+        function addPower(amount) {
+            setPower(power + amount);
+        }
+
+        // 使用技能的通用函数
+        function useSkill(skillFunction) {
+            if (skillCharges <= 0) return;
+            
+            skillFunction();
+            skillCharges--;
+            updateSkillChargesDisplay();
+            
+            // 更新技能按钮状态
+            const areSkillsEnabled = skillCharges > 0;
+            skillButtons.forEach(button => {
+                button.disabled = !areSkillsEnabled;
+            });
+        }
+
+        // 使用技能 - 炸弹 (清除最下面的三行)
+        function useSkillBomb() {
+            useSkill(() => {
+                let linesClearedBySkill = 0;
+                // 从底部向上检查并清除最多三行
+                for (let y = GRID_HEIGHT - 1; y >= 0 && linesClearedBySkill < 3; y--) {
+                    if (board[y].some(cell => cell !== 0)) { // 只要行中有方块就清除
+                        board.splice(y, 1);
+                        board.unshift(Array(GRID_WIDTH).fill(0));
+                        linesClearedBySkill++;
+                    }
+                }
+                
+                if (linesClearedBySkill > 0) {
+                    // 更新游戏状态
+                    linesCleared += linesClearedBySkill;
+                    linesDisplay.textContent = linesCleared;
+                    
+                    // 计算技能得分 (每清除一行获得100分)
+                    const skillScore = linesClearedBySkill * 100;
+                    score += skillScore;
+                    scoreDisplay.textContent = score;
+                    
+                    // 检查等级提升
+                    const newLevel = Math.floor(linesCleared / 10) + 1;
+                    if (newLevel > level) {
+                        level = newLevel;
+                        if (dropInterval > 100) {
+                            dropInterval -= 100;
+                            restartDropTimer();
+                        }
+                        levelDisplay.textContent = level;
+                    }
+                }
+                
+                // 播放一个简单的视觉效果 (闪烁)
+                let flashCount = 0;
+                const flashInterval = setInterval(() => {
+                    gameCanvas.style.opacity = flashCount % 2 === 0 ? '0.5' : '1';
+                    flashCount++;
+                    if (flashCount > 6) {
+                        clearInterval(flashInterval);
+                        gameCanvas.style.opacity = '1';
+                    }
+                }, 150);
+            });
+        }
+
+        // 使用技能 - 减速
+        function useSkillSlow() {
+            useSkill(() => {
+                if (isSlowActive) return;
+                
+                isSlowActive = true;
+                const originalDropInterval = dropInterval;
+                dropInterval *= 2; // 速度减半
+                restartDropTimer();
+                
+                // 10秒后恢复
+                slowTimer = setTimeout(() => {
+                    isSlowActive = false;
+                    dropInterval = originalDropInterval;
+                    restartDropTimer();
+                }, 10000);
+            });
+        }
+
+        // 使用技能 - 变换
+        function useSkillTransform() {
+            useSkill(() => {
+                // 保存当前方块的位置
+                const currentX = currentPiece.x;
+                const currentY = currentPiece.y;
+                
+                // 保存当前形状的引用，以便在需要时恢复
+                const originalShape = currentPiece.shape;
+                const originalColor = currentPiece.color;
+                
+                // 尝试生成新形状，最多尝试5次以找到一个可以放置的形状
+                let success = false;
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    const randomIndex = Math.floor(Math.random() * SHAPES.length);
+                    const newShapeData = SHAPES[randomIndex];
+                    
+                    currentPiece.shape = JSON.parse(JSON.stringify(newShapeData.shape));
+                    currentPiece.color = newShapeData.color;
+                    
+                    // 尝试调整位置以适应新形状
+                    if (isValidMove(currentPiece, 0, 0)) {
+                        success = true;
+                        break;
+                    }
+                    // 尝试向左移动
+                    else if (isValidMove(currentPiece, -1, 0)) {
+                        currentPiece.x--;
+                        success = true;
+                        break;
+                    }
+                    // 尝试向右移动
+                    else if (isValidMove(currentPiece, 1, 0)) {
+                        currentPiece.x++;
+                        success = true;
+                        break;
+                    }
+                }
+                
+                // 如果所有尝试都失败，则恢复原始形状
+                if (!success) {
+                    currentPiece.shape = originalShape;
+                    currentPiece.color = originalColor;
+                }
+            });
+        }
+
+        // 使用技能 - 水平消除 (清除当前方块所在的一行)
+        function useSkillLineClear() {
+            useSkill(() => {
+                // 获取当前方块最底部的行
+                const targetY = isGravityReversed ? 
+                    currentPiece.y : 
+                    currentPiece.y + currentPiece.shape.length - 1;
+                
+                // 检查该行是否在游戏区域内
+                if (targetY >= 0 && targetY < GRID_HEIGHT) {
+                    // 检查该行是否有方块
+                    if (board[targetY].some(cell => cell !== 0)) {
+                        // 清除该行
+                        board.splice(targetY, 1);
+                        board.unshift(Array(GRID_WIDTH).fill(0));
+                        
+                        // 更新游戏状态
+                        linesCleared++;
+                        linesDisplay.textContent = linesCleared;
+                        
+                        // 增加分数
+                        score += 150; // 水平消除技能获得150分
+                        scoreDisplay.textContent = score;
+                        
+                        // 检查等级提升
+                        const newLevel = Math.floor(linesCleared / 10) + 1;
+                        if (newLevel > level) {
+                            level = newLevel;
+                            if (dropInterval > 100) {
+                                dropInterval -= 100;
+                                restartDropTimer();
+                            }
+                            levelDisplay.textContent = level;
+                        }
+                    }
+                }
+                
+                // 播放视觉效果
+                const originalColor = gameCanvas.style.backgroundColor;
+                gameCanvas.style.backgroundColor = 'rgba(0, 255, 0, 0.2)';
+                setTimeout(() => {
+                    gameCanvas.style.backgroundColor = originalColor;
+                }, 300);
+            });
+        }
+
+        // 使用技能 - 粉碎 (随机清除12个方块)
+        function useSkillSmash() {
+            useSkill(() => {
+                let blocksSmashed = 0;
+                const MAX_SMASH_COUNT = 12;
+                
+                // 收集所有非空方块的位置
+                const filledCells = [];
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    for (let x = 0; x < GRID_WIDTH; x++) {
+                        if (board[y][x]) {
+                            filledCells.push({x, y});
+                        }
+                    }
+                }
+                
+                // 如果有足够的方块可以粉碎
+                if (filledCells.length > 0) {
+                    // 计算实际可以粉碎的数量 (不超过MAX_SMASH_COUNT)
+                    const smashCount = Math.min(MAX_SMASH_COUNT, filledCells.length);
+                    
+                    // 随机选择方块进行粉碎
+                    for (let i = 0; i < smashCount; i++) {
+                        const randomIndex = Math.floor(Math.random() * filledCells.length);
+                        const cell = filledCells.splice(randomIndex, 1)[0];
+                        board[cell.y][cell.x] = 0;
+                        blocksSmashed++;
+                    }
+                    
+                    // 给予粉碎奖励分数
+                    score += blocksSmashed * 50; // 每个粉碎的方块获得50分
+                    scoreDisplay.textContent = score;
+                }
+                
+                // 播放视觉效果
+                let flashCount = 0;
+                const flashInterval = setInterval(() => {
+                    gameCanvas.style.opacity = flashCount % 2 === 0 ? '0.7' : '1';
+                    flashCount++;
+                    if (flashCount > 8) {
+                        clearInterval(flashInterval);
+                        gameCanvas.style.opacity = '1';
+                    }
+                }, 100);
+            });
+        }
+
+        // 使用技能 - 幽灵模式 (显示方块落点预览)
+        function useSkillGhost() {
+            useSkill(() => {
+                if (isGhostActive) return;
+                
+                isGhostActive = true;
+                
+                // 5秒后恢复
+                ghostTimer = setTimeout(() => {
+                    isGhostActive = false;
+                }, 5000);
+            });
+        }
+
+        // 使用技能 - 重力反转 (方块向上移动)
+        function useSkillGravity() {
+            useSkill(() => {
+                if (isGravityReversed) return;
+                
+                isGravityReversed = true;
+                
+                // 5秒后恢复
+                gravityTimer = setTimeout(() => {
+                    isGravityReversed = false;
+                }, 5000);
+            });
+        }
+
+        // 事件监听
+        document.addEventListener('keydown', handleKeydown);
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        
+        // 技能按钮事件监听
+        skillBombButton.addEventListener('click', useSkillBomb);
+        skillSlowButton.addEventListener('click', useSkillSlow);
+        skillTransformButton.addEventListener('click', useSkillTransform);
+        skillLineClearButton.addEventListener('click', useSkillLineClear);
+        skillSmashButton.addEventListener('click', useSkillSmash);
+        skillGhostButton.addEventListener('click', useSkillGhost);
+        skillGravityButton.addEventListener('click', useSkillGravity);
+
+        // 初始化游戏
+        initBoard();
+        updateHighScoreDisplay();
+        // 预先渲染开始界面
+        render();
+    </script>
+</body>
+</html>
+
